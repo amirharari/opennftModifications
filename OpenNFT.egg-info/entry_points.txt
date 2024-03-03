@@ -1,0 +1,6 @@
+[console_scripts]
+opennft_console = opennft.__main__:main
+run_matlab = opennft.runmatlab:main
+
+[gui_scripts]
+opennft = opennft.__main__:main

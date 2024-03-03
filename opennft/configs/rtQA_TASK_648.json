@@ -1,0 +1,14 @@
+{
+	"ContrastActivation": "+1*TASK",
+	"SignalPreprocessingBasis": "TASK",
+	"ConditionIndex": [
+		{
+			"ConditionName": "TASK",
+			"OnOffsets": [
+				[109,216],
+				[325,432],
+				[541,648]
+			]
+		}
+	]
+}
