@@ -8,10 +8,9 @@ function displayFeedback(displayData)
 % End-user is advised to configure the use of PTB on their own workstation
 % and justify more advanced configuration for PTB.
 %__________________________________________________________________________
-% Copyright (C) 2016-2021 OpenNFT.org
 %
 % Written by Yury Koush, Artem Nikonorov
-
+global keyCounts; % Declare global variable
 tDispl = tic;
 
 P = evalin('base', 'P');
@@ -36,45 +35,77 @@ while ischar(line)
     line = fgetl(fid);
 end
 fclose(fid);
-buttons_pressed_file = strcat(P.WorkFolder,['/NF_Data_',num2str(P.NFRunNr),'/buttons_pressed_file_', num2str(P.NFRunNr), '.txt']);
+buttonsPressedFile = fullfile(P.WorkFolder, sprintf('NF_Data_%d', P.NFRunNr), sprintf('buttons_pressed_file_%d.txt', P.NFRunNr));
+successEvaluationFile = fullfile(P.WorkFolder, sprintf('NF_Data_%d', P.NFRunNr), sprintf('success_evaluation_file_%d.txt', P.NFRunNr));
+successConfidentFile = fullfile(P.WorkFolder, sprintf('NF_Data_%d', P.NFRunNr), sprintf('success_confident_file_%d.txt', P.NFRunNr));
 
+% Use persistent variables for state across function calls
+persistent rank last_condition
+
+firstTime = false;
+
+% Initialize persistent variables only once
+if isempty(rank)
+    rank = 4; % Example initialization, replace 4 with a meaningful default if applicable
+end
+
+if isempty(last_condition)
+    last_condition = -1; % Initial state, replace -1 with a meaningful default if applicable
+end
+
+% Check if the condition has changed since the last run
+if last_condition ~= condition
+    disp('restart rank'); % Display a message indicating rank is being restarted
+    rank = 4; % Reset rank
+    last_condition = condition; % Update the last_condition
+    firstTime = true; % Indicate this is the first run with the new condition
+end
 switch feedbackType
     %% Continuous PSC
     case 'bar_count'
         dispValue  = dispValue*(floor(P.Screen.h/2) - floor(P.Screen.h/10))/100;
         switch condition
             case 1 % Baseline
-                % Text "COUNT"
-                Screen('TextSize', P.Screen.wPtr , P.Screen.h/10);
-                Screen('DrawText', P.Screen.wPtr, 'COUNT', ...
-                    floor(P.Screen.w/2-P.Screen.h/4), ...
-                    floor(P.Screen.h/2-P.Screen.h/10), instrColor);
-            case 2 % Regualtion
+                % Text "+"
+                Screen('TextSize', P.Screen.wPtr , floor(P.Screen.h/10));
+                Screen('DrawText', P.Screen.wPtr, '+', ...
+                    floor(P.Screen.w/2-P.Screen.h/12), ...
+                    floor(P.Screen.h/2-P.Screen.h/12), instrColor);
+           case 2 % Regulation
                 % Fixation Point
                 Screen('FillOval', P.Screen.wPtr, [255 255 255], ...
                     [floor(P.Screen.w/2-P.Screen.w/200), ...
                     floor(P.Screen.h/2-P.Screen.w/200), ...
                     floor(P.Screen.w/2+P.Screen.w/200), ...
                     floor(P.Screen.h/2+P.Screen.w/200)]);
-                % draw target bar
+
+                % Draw activity bar
                 Screen('DrawLines', P.Screen.wPtr, ...
                     [floor(P.Screen.w/2-P.Screen.w/20), ...
                     floor(P.Screen.w/2+P.Screen.w/20); ...
-                    floor(P.Screen.h/10), floor(P.Screen.h/10)], ...
-                    P.Screen.lw, [255 0 0]);
-                % draw activity bar
-                Screen('DrawLines', P.Screen.wPtr, ...
-                    [floor(P.Screen.w/2-P.Screen.w/20), ...
-                    floor(P.Screen.w/2+P.Screen.w/20); ...
-                    floor(P.Screen.h/2-dispValue), ...
-                    floor(P.Screen.h/2-dispValue)], P.Screen.lw, [0 255 0]);
+                    floor((P.Screen.h/2-dispValue)*0.9), ...
+                    floor((P.Screen.h/2-dispValue)*0.9)], P.Screen.lw, [0 255 0]);
+
+                % Define a static frame that covers the entire possible range of the activity bar
+                framePadding = 10; % This can be adjusted based on how much border you want around the activity bar
+                maxBarLength = (P.Screen.h/2)*0.9;
+                frameRect = [floor(P.Screen.w/2-P.Screen.w/20)-framePadding, ... % left edge
+                             floor(P.Screen.h/2-maxBarLength)-framePadding, ... % top edge
+                             floor(P.Screen.w/2+P.Screen.w/20)+framePadding, ... % right edge
+                             floor(P.Screen.h/2+maxBarLength)+framePadding]; % bottom edge
+
+                % Draw the static frame
+                frameColor = [255 255 255]; % Red color for the frame, change as needed
+                frameWidth = 4; % Pen width of the frame, adjust as needed
+                Screen('FrameRect', P.Screen.wPtr, frameColor, frameRect, frameWidth);
+
             case 3 % mental strategies chooser
                 run = run + 1;
-                option_1 = strcat('option 1: ', strategies{1});
-                option_2 = strcat('option 2: ', strategies{2});
-                option_3 = strcat('option 3: ', strategies{3});
-                option_4 = strcat('option 4: ', strategies{4});
-                Screen('TextSize', P.Screen.wPtr , P.Screen.h/20);
+                option_1 = strcat(' 1-- ', strategies{1});
+                option_2 = strcat(' 2-- ', strategies{2});
+                option_3 = strcat(' 3-- ', strategies{3});
+                option_4 = strcat(' 4-- ', strategies{4});
+                Screen('TextSize', P.Screen.wPtr , floor(P.Screen.h/20));
                 Screen('DrawText', P.Screen.wPtr, 'Choose your mental strategy', ...
                     floor(P.Screen.w/1-P.Screen.h/1), ...
                     floor(P.Screen.h/5-P.Screen.h/10), [200 200 200]);
@@ -90,34 +121,33 @@ switch feedbackType
                 Screen('DrawText', P.Screen.wPtr, option_4, ...
                     floor(P.Screen.w/3-P.Screen.h/3), ...
                     floor(P.Screen.h/1.7-P.Screen.h/10), [200 200 200]);
-                    % Check the state of the keyboard.
-                    [ keyIsDown, seconds, keyCode ] = KbCheck;
-                    keyCode = find(keyCode, 1);
-                    key_pressed = '';
-                    
+                    keys = keyCounts.keys;
                     % If the user is pressing a key, then display its code number and name.
-                    if keyIsDown
-                        % Note that we use find(keyCode) because keyCode is an array.
-                        % See 'help KbCheck'
-                        keyPressed = KbName(keyCode);
-                        keyPressed = keyPressed(1);
-                        key_pressed = strcat(' ', keyPressed);
-                        fwid = fopen(buttons_pressed_file, 'a+');
-                        fprintf(fwid, 'Pressed: Button %s at %d seconds\n',keyPressed, iteration);
-                        fclose(fwid);
-                        fprintf('You pressed key %i which is %s\n', keyCode, keyPressed);
-                        Screen('DrawText', P.Screen.wPtr, strcat('you picked: ',keyPressed), ...
+                    if length(keys)~=0
+                        numericPart = regexp(keys{1}, '\d+', 'match');
+                        keyPressed = str2double(numericPart{1}); % Convert the first key to integer
+                        fprintf('The pressed key is: %d \n', keyPressed);
+                        fwid = fopen(buttonsPressedFile, 'a+');
+                        fprintf(fwid, 'Pressed: Button %d at %d seconds\n',keyPressed, iteration);
+                        fclose(fwid);.
+                        Screen('DrawText', P.Screen.wPtr, strcat('you picked: ',num2str(keyPressed)), ...
                             floor(P.Screen.w/3-P.Screen.h/3), ...
                             floor(P.Screen.h/1.3-P.Screen.h/10), [200 200 200]);
-                        % If the user holds down a key, KbCheck will report multiple events.
-                        % To condense multiple 'keyDown'     events into a single event, we wait until all
-                        % keys have been released.
-                    end    
+                    end
+                case 4 % Strategy reminder
+                    strategyNumber = getStrategyNumberFromFile(buttonsPressedFile);
+                    strategy = strategies{strategyNumber}
+                    Screen('TextSize', P.Screen.wPtr, floor(P.Screen.h/20)); % Adjust text size as needed
+                    Screen('DrawText', P.Screen.wPtr, strategy, ...
+                       floor(P.Screen.w/2 - length(strategy) * P.Screen.w/100), ... % Adjust text position as needed
+                       floor(P.Screen.h/2), [255, 255, 255]); % White color
+                case 5 % Rank your success
+                % Reset keyCounts (simulate restarting the data structure)
+                    rank = drawCustomScale(P, 'How well did you perform?', successEvaluationFile, rank);
+                case 6 % Rank your confident
+                    rank = drawCustomScale(P, 'How confident are you in your ranking?', successConfidentFile, rank);
         end
-
-        
-
-
+        keyCounts = containers.Map('KeyType', 'char', 'ValueType', 'double');
         P.Screen.vbl = Screen('Flip', P.Screen.wPtr, ...
             P.Screen.vbl + P.Screen.ifi/2);
 
@@ -131,10 +161,10 @@ switch feedbackType
                 Screen('DrawText', P.Screen.wPtr, 'COUNT', ...
                     floor(P.Screen.w/2-P.Screen.h/4), ...
                     floor(P.Screen.h/2-P.Screen.h/10), instrColor);
-                
+
                  P.Screen.vbl = Screen('Flip', P.Screen.wPtr, ...
                      P.Screen.vbl + P.Screen.ifi/2);
-                
+
             case 2 % Regualtion
                 % Fixation Point
                 Screen('FillOval', P.Screen.wPtr, [255 255 255], ...
@@ -154,14 +184,14 @@ switch feedbackType
                     floor(P.Screen.w/2+P.Screen.w/20); ...
                     floor(P.Screen.h/2-dispValue), ...
                     floor(P.Screen.h/2-dispValue)], P.Screen.lw, [0 255 0]);
-                
+
                     P.Screen.vbl = Screen('Flip', P.Screen.wPtr, ...
                         P.Screen.vbl + P.Screen.ifi/2);
             case 3
                 % ptbTask sequence called seperetaly in python
-                
+
         end
-        
+
     %% Intermittent PSC
 
 case 'value_fixation'
@@ -186,7 +216,7 @@ case 'value_fixation'
                         pause(randi([30,100])/1000)
                     end
                 end
-                
+
             case 2  % Regualtion
                 for i = 1:2
                     % arrow
@@ -210,7 +240,7 @@ case 'value_fixation'
                         pause(randi([30,100])/1000);
                     end
                 end
-                
+
             case 3 % NF
                 % feedback value
                 Screen('DrawText', P.Screen.wPtr, mat2str(dispValue), ...
@@ -224,7 +254,7 @@ case 'value_fixation'
                 P.Screen.vbl = Screen('Flip', P.Screen.wPtr, ...
                     P.Screen.vbl + P.Screen.ifi/2);
         end
-        
+
     %% Trial-based DCM
     case 'DCM'
         nrP = P.nrP;
@@ -333,3 +363,94 @@ recs = P.eventRecords;
 save(P.eventRecordsPath, 'recs', '-ascii', '-double');
 
 assignin('base', 'P', P);
+
+function rank = drawCustomScale(P, questionText, buttonsPressedFile, rank)
+    global keyCounts; % Accessing global variable keyCounts
+
+    % Scale parameters initialization
+    scaleStart = floor(P.Screen.w * 0.1);
+    scaleEnd = floor(P.Screen.w * 0.9);
+    scaleYPos = floor(P.Screen.h * 0.8);
+    scaleHeight = 10;
+    numberScalePositions = 7;
+
+    % Drawing the scale's main line
+    Screen('DrawLine', P.Screen.wPtr, [255, 255, 255], scaleStart, scaleYPos, scaleEnd, scaleYPos, scaleHeight);
+
+    % Draw marks and numbers
+    for i = 1:numberScalePositions
+        xPos = scaleStart + (i-1) * (scaleEnd - scaleStart) / (numberScalePositions - 1);
+        Screen('DrawLine', P.Screen.wPtr, [255 255 255], xPos, scaleYPos - 20, xPos, scaleYPos + 20, scaleHeight);
+        Screen('TextSize', P.Screen.wPtr, 20);
+        DrawFormattedText(P.Screen.wPtr, num2str(i), 'center', 'center', [255 255 255], [], [], [], [], [], [xPos - 10, scaleYPos + 25, xPos + 10, scaleYPos + 45]);
+    end
+
+
+    % Highlighting the current rank with a red line
+    rankPos = scaleStart + (rank - 1) * (scaleEnd - scaleStart) / (numberScalePositions - 1);
+    Screen('DrawLine', P.Screen.wPtr, [255, 0, 0], rankPos, scaleYPos - 30, rankPos, scaleYPos + 30, scaleHeight);
+
+    % Displaying the question text
+    Screen('TextSize', P.Screen.wPtr, 24);
+    DrawFormattedText(P.Screen.wPtr, questionText, 'center', scaleYPos - 100, [255, 255, 255]);
+    keys = keyCounts.keys;
+    values = keyCounts.values;
+    % Adjusting rank based on key presses
+    if ~isempty(keys)
+        numericPart = regexp(keys{1}, '\d+', 'match');
+        keyPressed = str2double(numericPart{1}); % Convert the key to an integer
+
+        % Adjusting rank based on the pressed key
+        if keyPressed == 1
+            rank = max(1, rank - values{1}); % Avoid going below 1
+        elseif keyPressed == 4
+            rank = min(numberScalePositions, rank + values{1}); % Avoid going above the max position
+            while KbCheck; end % Ensuring key release before proceeding
+        end
+        % Display updates on screen
+    Screen('Flip', P.Screen.wPtr);
+    end
+
+
+    % Logging the button press
+    fid = fopen(buttonsPressedFile, 'a+');
+    fprintf(fid, 'Value selected: %d at %f seconds\n', rank, GetSecs);
+    fclose(fid);
+
+
+function strategyNumber = getStrategyNumberFromFile(fileName)
+    % Open the file for reading
+    fid = fopen(fileName, 'r');
+    if fid == -1
+        error('Failed to open the file.');
+    end
+
+    % Initialize an empty cell array to hold lines from the file
+    lines = {};
+
+    % Read all lines from the file
+    while true
+        line = fgetl(fid); % Read one line from the file
+        if ~ischar(line) % If line is not a character array, we've reached the end of the file
+            break;
+        end
+        lines{end + 1} = line; % Append the line to the lines array
+    end
+    fclose(fid); % Close the file
+
+    % Extract the strategy number from the last line
+    if isempty(lines)
+        error('The file is empty.');
+    end
+    lastLine = lines{end}; % Get the last line
+    tokens = regexp(lastLine, 'Button (\d+)', 'tokens'); % Extract the number after 'Button'
+    if isempty(tokens)
+        error('Could not parse the last line for a strategy number.');
+    end
+
+    % Convert the extracted number to a double
+    strategyNumber = str2double(tokens{1}{1});
+
+    if isnan(strategyNumber)
+        error('The extracted strategy number is not a valid number.');
+    end

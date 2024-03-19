@@ -18,12 +18,28 @@ function ptbPreparation(screenId, workFolder, protName)
 % Copyright (C) 2016-2021 OpenNFT.org
 %
 % Written by Yury Koush
-
 P = evalin('base', 'P');
 
+global keyCounts; % Declare global variable
 Screen('CloseAll');
 Screen('Preference', 'SkipSyncTests', 2);
 
+% Unify key names
+KbName('UnifyKeyNames');
+
+% Create the keyboard queue for the default device
+KbQueueCreate;
+KbQueueStart;
+
+% Initialize keyCounts as a Map to store key press counts for specific keys
+keyCounts = containers.Map('KeyType', 'char', 'ValueType', 'double');
+
+
+
+% Set up and start the timer
+keyCheckTimer = timer('ExecutionMode', 'fixedRate', 'Period', 0.01, 'TimerFcn', @checkKeyPress);
+% Start the timer
+start(keyCheckTimer);
 if ~ismac
     % Because this command messes the coordinate system on the Mac OS
     Screen('Preference', 'ConserveVRAM', 64);
@@ -49,7 +65,7 @@ if ~fFullScreen
     % part of the screen, e.g. for test mode
     if strcmp(protName, 'Cont')
         P.Screen.wPtr = Screen('OpenWindow', screenid, [125 125 125], ...
-            [40 40 640 520]);
+            [0 0 1280 1024]);
     else
         P.Screen.wPtr = Screen('OpenWindow', screenid, [125 125 125], ...
             [40 40 720 720]);
@@ -69,10 +85,10 @@ P.Screen.w = w;
 P.Screen.lw = 5;
 
 % Text "HELLO" - also to check that PTB-3 function 'DrawText' is working
-Screen('TextSize', P.Screen.wPtr , P.Screen.h/10);
+Screen('TextSize', P.Screen.wPtr , round(P.Screen.h/10));
 Screen('DrawText', P.Screen.wPtr, 'HELLO', ...
-    floor(P.Screen.w/2-P.Screen.h/6), ...
-    floor(P.Screen.h/2-P.Screen.h/10), [200 200 200]);
+    floor(round(P.Screen.w/2)-round(P.Screen.h/6)), ...
+    floor(round(P.Screen.h/2)-round(P.Screen.h/10)), [200 200 200]);
 P.Screen.vbl=Screen('Flip', P.Screen.wPtr,P.Screen.vbl+P.Screen.ifi/2);
 pause(1);
 % mental strategies screen
@@ -80,7 +96,6 @@ pause(1);
 % Each event row for PTB is formatted as
 % [t9, t10, displayTimeInstruction, displayTimeFeedback]
 P.eventRecords = [0, 0, 0, 0];
-
 %% PSC
 if strcmp(protName, 'Cont')
     % fixation
@@ -274,3 +289,18 @@ end
 
 assignin('base', 'P', P);
 assignin('base', 'Tex', Tex);
+% Define the timer callback function
+function checkKeyPress(~, ~)
+    global keyCounts; % Access the global variable within the callback
+    [pressed, firstPress] = KbQueueCheck; % Check the keyboard queue
+    if pressed
+        pressedKeysIndices = find(firstPress);
+        for i = pressedKeysIndices
+            keyName = KbName(i);
+            if keyCounts.isKey(keyName)
+                keyCounts(keyName) = keyCounts(keyName) + 1;
+            else
+                keyCounts(keyName) = 1;
+            end
+        end
+    end

@@ -20,12 +20,12 @@ mask = "001_000008_000"
 # fns = [1, 2, 3, 4, 6, 5, 7, 8]
 fns = None
 
-testCase = 'SVM'
-
+testCase = 'PSC'
+print("in test")
 if testCase == 'PSC':
-    srcpath = 'C:/_RT/rtData/NF_PSC/NF_Run_1_src'
-    dstpath = 'C:/_RT/rtData/NF_PSC/NF_Run_1'
-    pause_in_sec = 1
+    srcpath = 'D:/test/rtData'
+    dstpath = 'D:/test/rtData2'
+    pause_in_sec = 2
 
 elif testCase == 'SVM':
     srcpath = 'C:/_RT/rtData/NF_SVM/NF_Run_1_src'
