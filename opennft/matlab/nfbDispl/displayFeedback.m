@@ -126,17 +126,20 @@ switch feedbackType
                     if length(keys)~=0
                         numericPart = regexp(keys{1}, '\d+', 'match');
                         keyPressed = str2double(numericPart{1}); % Convert the first key to integer
+                        if keyPressed<5 % not scanner TR 
                         fprintf('The pressed key is: %d \n', keyPressed);
                         fwid = fopen(buttonsPressedFile, 'a+');
                         fprintf(fwid, 'Pressed: Button %d at %d seconds\n',keyPressed, iteration);
-                        fclose(fwid);.
+                        fclose(fwid);
+                        
                         Screen('DrawText', P.Screen.wPtr, strcat('you picked: ',num2str(keyPressed)), ...
                             floor(P.Screen.w/3-P.Screen.h/3), ...
                             floor(P.Screen.h/1.3-P.Screen.h/10), [200 200 200]);
+                        end
                     end
                 case 4 % Strategy reminder
                     strategyNumber = getStrategyNumberFromFile(buttonsPressedFile);
-                    strategy = strategies{strategyNumber}
+                    strategy = strategies{strategyNumber};
                     Screen('TextSize', P.Screen.wPtr, floor(P.Screen.h/20)); % Adjust text size as needed
                     Screen('DrawText', P.Screen.wPtr, strategy, ...
                        floor(P.Screen.w/2 - length(strategy) * P.Screen.w/100), ... % Adjust text position as needed
@@ -414,7 +417,7 @@ function rank = drawCustomScale(P, questionText, buttonsPressedFile, rank)
 
     % Logging the button press
     fid = fopen(buttonsPressedFile, 'a+');
-    fprintf(fid, 'Value selected: %d at %f seconds\n', rank, GetSecs);
+    fprintf(fid, 'Value selected: %d at %f seconds\n', rank, iteration); %which timestep to use?
     fclose(fid);
 
 
